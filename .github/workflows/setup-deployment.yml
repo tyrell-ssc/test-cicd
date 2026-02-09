@@ -31,55 +31,41 @@ jobs:
       - name: Create/Update Web Site
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          GH_TOKEN: ${{ secrets.GH_PAT }} # See note below
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           ENV="${{ inputs.environment }}"
-          SITE_NAME="${{ github.event.repository.name }}-web-$ENV"
+          # Clean up the name logic. If production, try to use just the repo name, otherwise append env.
+          if [ "$ENV" = "production" ]; then
+             SITE_NAME="${{ github.event.repository.name }}-web"
+          else
+             SITE_NAME="${{ github.event.repository.name }}-web-$ENV"
+          fi
 
-          echo "Setting up $ENV environment for Web"
+          echo "Setting up Web Site: $SITE_NAME"
 
           # Check if site exists
           SITE_ID=$(netlify api listSites | jq -r ".[] | select(.name==\"$SITE_NAME\") | .id" || echo "")
 
           if [ -z "$SITE_ID" ]; then
-            echo "Creating new Netlify site: $SITE_NAME"
+            echo "Creating new Netlify site..."
             
-            CREATE_DATA=$(jq -n --arg name "$SITE_NAME" --arg domain "${{ github.event.repository.name }}.netlify.app" '{ body: { name: $name, custom_domain: $domain } }')
+            # ✅ FIX: Removed custom_domain (invalid for .netlify.app URLs)
+            CREATE_DATA=$(jq -n --arg name "$SITE_NAME" '{ body: { name: $name } }')
 
-            # Create site
             SITE_ID=$(netlify api createSite -d "$CREATE_DATA" | jq -r '.id')
+            
+            # ✅ FIX: Check if creation worked before proceeding
+            if [ -z "$SITE_ID" ] || [ "$SITE_ID" = "null" ]; then
+              echo "❌ Error: Failed to create site. The name '$SITE_NAME' might be taken."
+              exit 1
+            fi
 
             echo "Created site with ID: $SITE_ID"
-
-            # Store site ID in GitHub secrets
             gh secret set "NETLIFY_WEB_SITE_ID_$(echo $ENV | tr '[:lower:]' '[:upper:]')" -b"$SITE_ID"
           else
-            echo "Site already exists with ID: $SITE_ID"
+            echo "Found existing site: $SITE_ID"
           fi
 
-          # # Configure build settings
-          # netlify api updateSite --site_id="$SITE_ID" -d "{
-          #   \"build_settings\": {
-          #     \"cmd\": \"curl -fsSL https://bun.sh/install | bash && export PATH=\$HOME/.bun/bin:\$PATH && bun install && bun run build:web:$ENV\",
-          #   }" | jq -r '.id')
-
-          #   echo "Created site with ID: $SITE_ID"
-
-          #   # Store site ID in GitHub secrets
-          #   gh secret set "NETLIFY_WEB_SITE_ID_$(echo $ENV | tr '[:lower:]' '[:upper:]')" -b"$SITE_ID"
-          # else
-          #   echo "Site already exists with ID: $SITE_ID"
-          # fi
-
-          # # Configure build settings
-          # netlify api updateSite --site_id="$SITE_ID" -d "{
-          #   \"build_settings\": {
-          #     \"cmd\": \"curl -fsSL https://bun.sh/install | bash && export PATH=\$HOME/.bun/bin:\$PATH && bun install && bun run build:web:$ENV\",
-          #     \"dir\": \"apps/web/dist\"
-          #   }
-          # }"
-          
-          # 2. Update Build Settings (The fix)
           echo "Updating build settings..."
           UPDATE_DATA=$(jq -n \
             --arg id "$SITE_ID" \
@@ -88,37 +74,43 @@ jobs:
             '{ site_id: $id, body: { build_settings: { cmd: $cmd, dir: $dir } } }')
 
           netlify api updateSite --data "$UPDATE_DATA"
-
-          # Link to Git repo
           netlify link --id="$SITE_ID"
-
+          
       - name: Create/Update Admin Site
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          GH_TOKEN: ${{ secrets.GH_PAT }} # See note below
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           ENV="${{ inputs.environment }}"
-          SITE_NAME="${{ github.event.repository.name }}-admin-$ENV"
+          if [ "$ENV" = "production" ]; then
+             SITE_NAME="${{ github.event.repository.name }}-admin"
+          else
+             SITE_NAME="${{ github.event.repository.name }}-admin-$ENV"
+          fi
 
-          # Check if site exists
+          echo "Setting up Admin Site: $SITE_NAME"
+
           SITE_ID=$(netlify api listSites | jq -r ".[] | select(.name==\"$SITE_NAME\") | .id" || echo "")
 
           if [ -z "$SITE_ID" ]; then
-            echo "Creating new Netlify site: $SITE_NAME"
-            CREATE_DATA=$(jq -n --arg name "$SITE_NAME" --arg domain "admin-${{ github.event.repository.name }}.netlify.app" '{ body: { name: $name, custom_domain: $domain } }')
+            echo "Creating new Netlify site..."
+            
+            # ✅ FIX: Removed custom_domain
+            CREATE_DATA=$(jq -n --arg name "$SITE_NAME" '{ body: { name: $name } }')
 
-            # Create site
             SITE_ID=$(netlify api createSite -d "$CREATE_DATA" | jq -r '.id')
 
-            echo "Created site with ID: $SITE_ID"
+            if [ -z "$SITE_ID" ] || [ "$SITE_ID" = "null" ]; then
+              echo "❌ Error: Failed to create site. The name '$SITE_NAME' might be taken."
+              exit 1
+            fi
 
-            # Store site ID in GitHub secrets
+            echo "Created site with ID: $SITE_ID"
             gh secret set "NETLIFY_ADMIN_SITE_ID_$(echo $ENV | tr '[:lower:]' '[:upper:]')" -b"$SITE_ID"
           else
-            echo "Site already exists with ID: $SITE_ID"
+            echo "Found existing site: $SITE_ID"
           fi
 
-          # Update Build Settings
           echo "Updating build settings..."
           UPDATE_DATA=$(jq -n \
             --arg id "$SITE_ID" \
@@ -127,33 +119,6 @@ jobs:
             '{ site_id: $id, body: { build_settings: { cmd: $cmd, dir: $dir } } }')
 
           netlify api updateSite --data "$UPDATE_DATA"
-
-          # # Configure build settings
-          # netlify api updateSite --site_id="$SITE_ID" -d "{
-          #   \"build_settings\": {
-          #     \"cmd\": \"curl -fsSL https://bun.sh/install | bash && export PATH=\$HOME/.bun/bin:\$PATH && bun install && bun run build:admin:$ENV\",
-          #     \"dir\": \"apps/admin/dist\"
-          #   }
-          # }"
-          #   }" | jq -r '.id')
-
-          #   echo "Created site with ID: $SITE_ID"
-
-          #   # Store site ID in GitHub secrets
-          #   gh secret set "NETLIFY_ADMIN_SITE_ID_$(echo $ENV | tr '[:lower:]' '[:upper:]')" -b"$SITE_ID"
-          # else
-          #   echo "Site already exists with ID: $SITE_ID"
-          # fi
-
-          # # Configure build settings
-          # netlify api updateSite --site-id="$SITE_ID" -d "{
-          #   \"build_settings\": {
-          #     \"cmd\": \"curl -fsSL https://bun.sh/install | bash && export PATH=\$HOME/.bun/bin:\$PATH && bun install && bun run build:admin:$ENV\",
-          #     \"dir\": \"apps/admin/dist\"
-          #   }
-          # }"
-
-          # Link to Git repo
           netlify link --id="$SITE_ID"
 
   sync-env-vars:
@@ -166,57 +131,52 @@ jobs:
       - name: Install Netlify CLI
         run: npm install -g netlify-cli
 
-      - name: Sync Web App Env Vars to Netlify
+      - name: Sync Web App Env Vars
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          GH_TOKEN: ${{ secrets.GH_PAT }} # See note below
+          GH_TOKEN: ${{ secrets.GH_PAT }}
           ENV_UPPER: ${{ inputs.environment == 'production' && 'PRODUCTION' || 'STAGING' }}
         run: |
           ENV="${{ inputs.environment }}"
-          
-          # Get Supabase URL from secrets
           SUPABASE_URL="${{ secrets[format('SUPABASE_URL_{0}', env.ENV_UPPER)] || secrets.SUPABASE_URL_PRODUCTION }}"
           SUPABASE_KEY="${{ secrets[format('SUPABASE_PUBLISHABLE_KEY_{0}', env.ENV_UPPER)] || secrets.SUPABASE_PUBLISHABLE_KEY_PRODUCTION }}"
 
-          # Get site ID
+          # Retrieve ID
           SITE_ID=$(gh secret list | grep "NETLIFY_WEB_SITE_ID_${ENV_UPPER}" | awk '{print $2}' || echo "")
 
           if [ -z "$SITE_ID" ]; then
-            echo "Warning: Site ID not found for $ENV"
-            exit 0
+            echo "❌ Error: Web Site ID not found. Ensure setup-netlify ran successfully."
+            exit 1
           fi
 
           echo "Syncing to Site ID: $SITE_ID"
           
-          # ✅ FIX: Link the site first, then set env vars (env:set doesn't support --site-id)
           netlify link --id "$SITE_ID" 2>/dev/null || true
           
           netlify env:set VITE_SUPABASE_URL "$SUPABASE_URL"
           netlify env:set VITE_SUPABASE_PUBLISHABLE_KEY "$SUPABASE_KEY"
-
+          
           echo "✅ Web env vars synced"
 
-      - name: Sync Admin App Env Vars to Netlify
+      - name: Sync Admin App Env Vars
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          GH_TOKEN: ${{ secrets.GH_PAT }} # See note below
+          GH_TOKEN: ${{ secrets.GH_PAT }}
           ENV_UPPER: ${{ inputs.environment == 'production' && 'PRODUCTION' || 'STAGING' }}
         run: |
           ENV="${{ inputs.environment }}"
-          
           SUPABASE_URL="${{ secrets[format('SUPABASE_URL_{0}', env.ENV_UPPER)] || secrets.SUPABASE_URL_PRODUCTION }}"
           SUPABASE_KEY="${{ secrets[format('SUPABASE_PUBLISHABLE_KEY_{0}', env.ENV_UPPER)] || secrets.SUPABASE_PUBLISHABLE_KEY_PRODUCTION }}"
 
           SITE_ID=$(gh secret list | grep "NETLIFY_ADMIN_SITE_ID_${ENV_UPPER}" | awk '{print $2}' || echo "")
 
           if [ -z "$SITE_ID" ]; then
-            echo "Warning: Site ID not found for $ENV"
-            exit 0
+             echo "❌ Error: Admin Site ID not found."
+             exit 1
           fi
 
           echo "Syncing to Site ID: $SITE_ID"
           
-          # ✅ FIX: Link the site first
           netlify link --id "$SITE_ID" 2>/dev/null || true
 
           netlify env:set VITE_SUPABASE_URL "$SUPABASE_URL"
@@ -232,8 +192,4 @@ jobs:
       - name: Summary
         run: |
           echo "✅ Deployment setup complete for ${{ inputs.environment }} environment"
-          echo ""
-          echo "Next steps:"
-          echo "1. Commit .env.${{ inputs.environment }} file (if not already committed)"
-          echo "2. Push to trigger Netlify deployments"
-          echo "3. Create a tag (e.g., v1.0.0) to trigger full release"
+          echo "Web Site: https://$(gh secret list | grep NETLIFY_WEB_SITE_ID_${{ inputs.environment == 'production' && 'PRODUCTION' || 'STAGING' }} | awk '{print $2}' | xargs netlify api getSite --data | jq -r '.url')"
