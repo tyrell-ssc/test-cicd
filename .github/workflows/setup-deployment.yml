@@ -28,18 +28,15 @@ jobs:
       - name: Install Netlify CLI
         run: npm install -g netlify-cli
 
-      - name: Setup environment
-        run: |
-          ENV="${{ inputs.environment }}"
-          echo "Setting up $ENV environment"
-          echo "Reading from GitHub Secrets (no .env files needed)"
-
-            - name: Create/Update Web Site
+      - name: Create/Update Web Site
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_PAT }} # See note below
         run: |
           ENV="${{ inputs.environment }}"
           SITE_NAME="${{ github.event.repository.name }}-web-$ENV"
+
+          echo "Setting up $ENV environment"
 
           # Check if site exists
           SITE_ID=$(netlify api listSites | jq -r ".[] | select(.name==\"$SITE_NAME\") | .id" || echo "")
@@ -71,12 +68,11 @@ jobs:
 
           # Link to Git repo
           netlify link --id="$SITE_ID"
-        env:
-          GH_TOKEN: ${{ github.token }}
-      
-            - name: Create/Update Admin Site
+
+      - name: Create/Update Admin Site
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_PAT }} # See note below
         run: |
           ENV="${{ inputs.environment }}"
           SITE_NAME="${{ github.event.repository.name }}-admin-$ENV"
@@ -111,9 +107,7 @@ jobs:
 
           # Link to Git repo
           netlify link --id="$SITE_ID"
-        env:
-          GH_TOKEN: ${{ github.token }}
-      
+
   sync-env-vars:
     name: Sync Environment Variables
     needs: setup-netlify
@@ -124,14 +118,15 @@ jobs:
       - name: Install Netlify CLI
         run: npm install -g netlify-cli
 
-            - name: Sync Web App Env Vars to Netlify
+      - name: Sync Web App Env Vars to Netlify
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_PAT }} # See note below
+          ENV_UPPER: ${{ inputs.environment == 'production' && 'PRODUCTION' || 'STAGING' }}
         run: |
           ENV="${{ inputs.environment }}"
-          ENV_UPPER=$(echo "$ENV" | tr '[:lower:]' '[:upper:]')
-
-          # Get Supabase URL from secrets (based on environment)
+          
+          # Get Supabase URL from secrets
           SUPABASE_URL="${{ secrets[format('SUPABASE_URL_{0}', env.ENV_UPPER)] || secrets.SUPABASE_URL_PRODUCTION }}"
           SUPABASE_KEY="${{ secrets[format('SUPABASE_PUBLISHABLE_KEY_{0}', env.ENV_UPPER)] || secrets.SUPABASE_PUBLISHABLE_KEY_PRODUCTION }}"
 
@@ -148,17 +143,15 @@ jobs:
           netlify env:set VITE_SUPABASE_PUBLISHABLE_KEY "$SUPABASE_KEY" --site-id="$SITE_ID" || true
 
           echo "✅ Web env vars synced"
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ENV_UPPER: ${{ inputs.environment == 'production' && 'PRODUCTION' || 'STAGING' }}
-      
-            - name: Sync Admin App Env Vars to Netlify
+
+      - name: Sync Admin App Env Vars to Netlify
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_PAT }} # See note below
+          ENV_UPPER: ${{ inputs.environment == 'production' && 'PRODUCTION' || 'STAGING' }}
         run: |
           ENV="${{ inputs.environment }}"
-          ENV_UPPER=$(echo "$ENV" | tr '[:lower:]' '[:upper:]')
-
+          
           SUPABASE_URL="${{ secrets[format('SUPABASE_URL_{0}', env.ENV_UPPER)] || secrets.SUPABASE_URL_PRODUCTION }}"
           SUPABASE_KEY="${{ secrets[format('SUPABASE_PUBLISHABLE_KEY_{0}', env.ENV_UPPER)] || secrets.SUPABASE_PUBLISHABLE_KEY_PRODUCTION }}"
 
@@ -174,10 +167,7 @@ jobs:
           netlify env:set VITE_SUPABASE_PUBLISHABLE_KEY "$SUPABASE_KEY" --site-id="$SITE_ID" || true
 
           echo "✅ Admin env vars synced"
-        env:
-          GH_TOKEN: ${{ github.token }}
-          ENV_UPPER: ${{ inputs.environment == 'production' && 'PRODUCTION' || 'STAGING' }}
-      
+
   summary:
     name: Deployment Setup Summary
     needs: [setup-netlify, sync-env-vars]
