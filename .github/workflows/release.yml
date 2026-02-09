@@ -54,19 +54,18 @@ jobs:
       - name: Check if Netlify sites are configured
         id: check
         run: |
-                    if [ -z "${{ secrets.NETLIFY_WEB_SITE_ID_PRODUCTION }}" ]; then
-            echo "needs_setup=true" >> $GITHUB_OUTPUT
-            echo "⚠️  Netlify sites not configured. Will run setup first."
-            exit 0
-          fi
-                              if [ -z "${{ secrets.NETLIFY_ADMIN_SITE_ID_PRODUCTION }}" ]; then
-            echo "needs_setup=true" >> $GITHUB_OUTPUT
-            echo "⚠️  Netlify sites not configured. Will run setup first."
-            exit 0
-          fi
-                    echo "needs_setup=false" >> $GITHUB_OUTPUT
-          echo "✅ Netlify sites already configured"
-
+              if [ -z "${{ secrets.NETLIFY_WEB_SITE_ID_PRODUCTION }}" ]; then
+              echo "needs_setup=true" >> $GITHUB_OUTPUT
+              echo "⚠️  Netlify sites not configured. Will run setup first."
+              exit 0
+              fi
+              if [ -z "${{ secrets.NETLIFY_ADMIN_SITE_ID_PRODUCTION }}" ]; then
+              echo "needs_setup=true" >> $GITHUB_OUTPUT
+              echo "⚠️  Netlify sites not configured. Will run setup first."
+              exit 0
+              fi
+              echo "needs_setup=false" >> $GITHUB_OUTPUT
+              echo "✅ Netlify sites already configured"
   setup-deployment:
     name: Setup Deployment (First Run)
     needs: check-deployment-setup
