@@ -34,7 +34,6 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           ENV="${{ inputs.environment }}"
-          # Clean up the name logic. If production, try to use just the repo name, otherwise append env.
           if [ "$ENV" = "production" ]; then
              SITE_NAME="${{ github.event.repository.name }}-web"
           else
@@ -48,13 +47,10 @@ jobs:
 
           if [ -z "$SITE_ID" ]; then
             echo "Creating new Netlify site..."
-            
-            # ✅ FIX: Removed custom_domain (invalid for .netlify.app URLs)
             CREATE_DATA=$(jq -n --arg name "$SITE_NAME" '{ body: { name: $name } }')
 
             SITE_ID=$(netlify api createSite -d "$CREATE_DATA" | jq -r '.id')
             
-            # ✅ FIX: Check if creation worked before proceeding
             if [ -z "$SITE_ID" ] || [ "$SITE_ID" = "null" ]; then
               echo "❌ Error: Failed to create site. The name '$SITE_NAME' might be taken."
               exit 1
@@ -66,6 +62,9 @@ jobs:
             echo "Found existing site: $SITE_ID"
           fi
 
+          # NOTE: Build settings usually only apply if the site is connected to a Git Repo.
+          # Since we are using API creation, you might need to connect the repo manually in UI later,
+          # OR use 'netlify deploy' in your CI pipeline.
           echo "Updating build settings..."
           UPDATE_DATA=$(jq -n \
             --arg id "$SITE_ID" \
@@ -74,8 +73,9 @@ jobs:
             '{ site_id: $id, body: { build_settings: { cmd: $cmd, dir: $dir } } }')
 
           netlify api updateSite --data "$UPDATE_DATA"
-          netlify link --id="$SITE_ID"
           
+          # ✅ FIX: Removed 'netlify link' which causes monorepo errors.
+
       - name: Create/Update Admin Site
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
@@ -94,8 +94,6 @@ jobs:
 
           if [ -z "$SITE_ID" ]; then
             echo "Creating new Netlify site..."
-            
-            # ✅ FIX: Removed custom_domain
             CREATE_DATA=$(jq -n --arg name "$SITE_NAME" '{ body: { name: $name } }')
 
             SITE_ID=$(netlify api createSite -d "$CREATE_DATA" | jq -r '.id')
@@ -119,7 +117,6 @@ jobs:
             '{ site_id: $id, body: { build_settings: { cmd: $cmd, dir: $dir } } }')
 
           netlify api updateSite --data "$UPDATE_DATA"
-          netlify link --id="$SITE_ID"
 
   sync-env-vars:
     name: Sync Environment Variables
@@ -141,17 +138,17 @@ jobs:
           SUPABASE_URL="${{ secrets[format('SUPABASE_URL_{0}', env.ENV_UPPER)] || secrets.SUPABASE_URL_PRODUCTION }}"
           SUPABASE_KEY="${{ secrets[format('SUPABASE_PUBLISHABLE_KEY_{0}', env.ENV_UPPER)] || secrets.SUPABASE_PUBLISHABLE_KEY_PRODUCTION }}"
 
-          # Retrieve ID
           SITE_ID=$(gh secret list | grep "NETLIFY_WEB_SITE_ID_${ENV_UPPER}" | awk '{print $2}' || echo "")
 
           if [ -z "$SITE_ID" ]; then
-            echo "❌ Error: Web Site ID not found. Ensure setup-netlify ran successfully."
+            echo "❌ Error: Web Site ID not found."
             exit 1
           fi
 
           echo "Syncing to Site ID: $SITE_ID"
           
-          netlify link --id "$SITE_ID" 2>/dev/null || true
+          # ✅ FIX: Export Site ID directly. No need for 'netlify link'.
+          export NETLIFY_SITE_ID="$SITE_ID"
           
           netlify env:set VITE_SUPABASE_URL "$SUPABASE_URL"
           netlify env:set VITE_SUPABASE_PUBLISHABLE_KEY "$SUPABASE_KEY"
@@ -177,7 +174,8 @@ jobs:
 
           echo "Syncing to Site ID: $SITE_ID"
           
-          netlify link --id "$SITE_ID" 2>/dev/null || true
+          # ✅ FIX: Export Site ID directly.
+          export NETLIFY_SITE_ID="$SITE_ID"
 
           netlify env:set VITE_SUPABASE_URL "$SUPABASE_URL"
           netlify env:set VITE_SUPABASE_PUBLISHABLE_KEY "$SUPABASE_KEY"
@@ -190,6 +188,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Summary
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           echo "✅ Deployment setup complete for ${{ inputs.environment }} environment"
+          echo "View your sites here:"
           echo "Web Site: https://$(gh secret list | grep NETLIFY_WEB_SITE_ID_${{ inputs.environment == 'production' && 'PRODUCTION' || 'STAGING' }} | awk '{print $2}' | xargs netlify api getSite --data | jq -r '.url')"
