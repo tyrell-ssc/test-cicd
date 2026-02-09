@@ -59,7 +59,7 @@ jobs:
           fi
 
           # Configure build settings
-          netlify api updateSite --site-id="$SITE_ID" -d "{
+          netlify api updateSite --site_id="$SITE_ID" -d "{
             \"build_settings\": {
               \"cmd\": \"curl -fsSL https://bun.sh/install | bash && export PATH=\$HOME/.bun/bin:\$PATH && bun install && bun run build:web:$ENV\",
               \"dir\": \"apps/web/dist\"
@@ -138,9 +138,13 @@ jobs:
             exit 0
           fi
 
-          echo "Syncing Supabase env vars to Netlify..."
-          netlify env:set VITE_SUPABASE_URL "$SUPABASE_URL" --site-id="$SITE_ID" || true
-          netlify env:set VITE_SUPABASE_PUBLISHABLE_KEY "$SUPABASE_KEY" --site-id="$SITE_ID" || true
+          echo "Syncing to Site ID: $SITE_ID"
+          
+          # ✅ FIX: Link the site first, then set env vars (env:set doesn't support --site-id)
+          netlify link --id "$SITE_ID" 2>/dev/null || true
+          
+          netlify env:set VITE_SUPABASE_URL "$SUPABASE_URL"
+          netlify env:set VITE_SUPABASE_PUBLISHABLE_KEY "$SUPABASE_KEY"
 
           echo "✅ Web env vars synced"
 
@@ -162,9 +166,13 @@ jobs:
             exit 0
           fi
 
-          echo "Syncing Supabase env vars to Netlify..."
-          netlify env:set VITE_SUPABASE_URL "$SUPABASE_URL" --site-id="$SITE_ID" || true
-          netlify env:set VITE_SUPABASE_PUBLISHABLE_KEY "$SUPABASE_KEY" --site-id="$SITE_ID" || true
+          echo "Syncing to Site ID: $SITE_ID"
+          
+          # ✅ FIX: Link the site first
+          netlify link --id "$SITE_ID" 2>/dev/null || true
+
+          netlify env:set VITE_SUPABASE_URL "$SUPABASE_URL"
+          netlify env:set VITE_SUPABASE_PUBLISHABLE_KEY "$SUPABASE_KEY"
 
           echo "✅ Admin env vars synced"
 
