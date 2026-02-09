@@ -31,7 +31,7 @@ jobs:
       - name: Create/Update Web Site
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          GH_TOKEN: ${{ secrets.GITHUB_PAT }} # See note below
+          GH_TOKEN: ${{ secrets.GH_PAT }} # See note below
         run: |
           ENV="${{ inputs.environment }}"
           SITE_NAME="${{ github.event.repository.name }}-web-$ENV"
@@ -72,7 +72,7 @@ jobs:
       - name: Create/Update Admin Site
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          GH_TOKEN: ${{ secrets.GITHUB_PAT }} # See note below
+          GH_TOKEN: ${{ secrets.GH_PAT }} # See note below
         run: |
           ENV="${{ inputs.environment }}"
           SITE_NAME="${{ github.event.repository.name }}-admin-$ENV"
@@ -121,7 +121,7 @@ jobs:
       - name: Sync Web App Env Vars to Netlify
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          GH_TOKEN: ${{ secrets.GITHUB_PAT }} # See note below
+          GH_TOKEN: ${{ secrets.GH_PAT }} # See note below
           ENV_UPPER: ${{ inputs.environment == 'production' && 'PRODUCTION' || 'STAGING' }}
         run: |
           ENV="${{ inputs.environment }}"
@@ -147,7 +147,7 @@ jobs:
       - name: Sync Admin App Env Vars to Netlify
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          GH_TOKEN: ${{ secrets.GITHUB_PAT }} # See note below
+          GH_TOKEN: ${{ secrets.GH_PAT }} # See note below
           ENV_UPPER: ${{ inputs.environment == 'production' && 'PRODUCTION' || 'STAGING' }}
         run: |
           ENV="${{ inputs.environment }}"
