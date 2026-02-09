@@ -1,0 +1,26 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "jsx": "react-native",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "allowJs": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleDetection": "force",
+    "paths": {
+      "@test-cicd/ui": ["./packages/ui/src"],
+      "@test-cicd/app": ["./packages/app/src"],
+      "@test-cicd/admin": ["./packages/app/src/admin"],
+      "@test-cicd/db": ["./packages/db/src"],
+      "@test-cicd/supabase": ["./packages/supabase/src"]
+    }
+  }
+}

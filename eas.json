@@ -1,0 +1,45 @@
+{
+  "cli": {
+    "version": ">= 14.0.0"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "bundleIdentifier": "com.mycompany.testcicd.dev"
+      },
+      "android": {
+        "package": "com_mycompany_testcicd_dev"
+      }
+    },
+    "staging": {
+      "distribution": "internal",
+      "channel": "staging",
+      "ios": {
+        "bundleIdentifier": "com.mycompany.testcicd.staging"
+      },
+      "android": {
+        "package": "com_mycompany_testcicd_staging"
+      }
+    },
+    "production": {
+      "distribution": "store",
+      "channel": "production",
+      "ios": {
+        "bundleIdentifier": "com.mycompany.testcicd"
+      },
+      "android": {
+        "package": "com_mycompany_testcicd"
+      }
+    }
+  },
+  "update": {
+    "staging": {
+      "channel": "staging"
+    },
+    "production": {
+      "channel": "production"
+    }
+  }
+}

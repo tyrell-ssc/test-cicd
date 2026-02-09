@@ -1,0 +1,136 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  version-info:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.parse.outputs.version }}
+      version_type: ${{ steps.parse.outputs.type }}
+      is_patch: ${{ steps.parse.outputs.is_patch }}
+      is_minor: ${{ steps.parse.outputs.is_minor }}
+      is_major: ${{ steps.parse.outputs.is_major }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Parse version
+        id: parse
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          # Get previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "v0.0.0")
+          PREV_VERSION=${PREV_TAG#v}
+
+          # Parse versions
+          IFS='.' read -r -a current <<< "$VERSION"
+          IFS='.' read -r -a previous <<< "$PREV_VERSION"
+
+          # Determine version type
+          if [ "${previous[0]}" != "${current[0]}" ]; then
+            echo "type=major" >> $GITHUB_OUTPUT
+            echo "is_major=true" >> $GITHUB_OUTPUT
+          elif [ "${previous[1]}" != "${current[1]}" ]; then
+            echo "type=minor" >> $GITHUB_OUTPUT
+            echo "is_minor=true" >> $GITHUB_OUTPUT
+          else
+            echo "type=patch" >> $GITHUB_OUTPUT
+            echo "is_patch=true" >> $GITHUB_OUTPUT
+          fi
+
+  check-deployment-setup:
+    name: Check Deployment Setup
+    runs-on: ubuntu-latest
+    outputs:
+      needs_setup: ${{ steps.check.outputs.needs_setup }}
+    steps:
+      - name: Check if Netlify sites are configured
+        id: check
+        run: |
+                    if [ -z "${{ secrets.NETLIFY_WEB_SITE_ID_PRODUCTION }}" ]; then
+            echo "needs_setup=true" >> $GITHUB_OUTPUT
+            echo "⚠️  Netlify sites not configured. Will run setup first."
+            exit 0
+          fi
+                              if [ -z "${{ secrets.NETLIFY_ADMIN_SITE_ID_PRODUCTION }}" ]; then
+            echo "needs_setup=true" >> $GITHUB_OUTPUT
+            echo "⚠️  Netlify sites not configured. Will run setup first."
+            exit 0
+          fi
+                    echo "needs_setup=false" >> $GITHUB_OUTPUT
+          echo "✅ Netlify sites already configured"
+
+  setup-deployment:
+    name: Setup Deployment (First Run)
+    needs: check-deployment-setup
+    if: needs.check-deployment-setup.outputs.needs_setup == 'true'
+    uses: ./.github/workflows/setup-deployment.yml
+    secrets: inherit
+    with:
+      environment: production
+
+  quality-patch:
+    needs: [version-info, check-deployment-setup, setup-deployment]
+    if: |
+      always() &&
+      (needs.setup-deployment.result == 'success' || needs.setup-deployment.result == 'skipped') &&
+      needs.version-info.outputs.is_patch == 'true'
+    uses: ./.github/workflows/quality-checks.yml
+    with:
+      strict: false
+
+  quality-minor-major:
+    needs: [version-info, check-deployment-setup, setup-deployment]
+    if: |
+      always() &&
+      (needs.setup-deployment.result == 'success' || needs.setup-deployment.result == 'skipped') &&
+      (needs.version-info.outputs.is_minor == 'true' ||
+       needs.version-info.outputs.is_major == 'true')
+    uses: ./.github/workflows/quality-checks.yml
+    with:
+      strict: true
+
+  tests:
+    needs: [version-info, quality-minor-major]
+    if: |
+      needs.version-info.outputs.is_minor == 'true' ||
+      needs.version-info.outputs.is_major == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+      - run: bun install
+      - name: Run tests
+        run: bun run test
+
+      # E2E only for major
+      - name: Run E2E tests
+        if: needs.version-info.outputs.is_major == 'true'
+        run: bun run test:e2e
+
+  deploy-mobile-ota:
+    needs: [version-info, quality-patch, quality-minor-major, tests]
+    if: |
+      always() &&
+      (needs.version-info.outputs.is_patch == 'true' || needs.version-info.outputs.is_minor == 'true') &&
+      (needs.quality-patch.result == 'success' || needs.quality-minor-major.result == 'success') &&
+      (needs.tests.result == 'success' || needs.tests.result == 'skipped')
+    uses: ./.github/workflows/mobile-ota.yml
+    secrets: inherit
+
+  deploy-mobile-build:
+    needs: [version-info, quality-minor-major, tests]
+    if: |
+      always() &&
+      needs.version-info.outputs.is_major == 'true' &&
+      needs.quality-minor-major.result == 'success' &&
+      needs.tests.result == 'success'
+    uses: ./.github/workflows/mobile-build.yml
+    secrets: inherit

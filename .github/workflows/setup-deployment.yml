@@ -1,0 +1,193 @@
+name: Setup Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to setup (production or staging)'
+        required: true
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
+  workflow_call:
+    inputs:
+      environment:
+        description: 'Environment to setup'
+        required: true
+        type: string
+
+jobs:
+  setup-netlify:
+    name: Setup Netlify Sites
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Netlify CLI
+        run: npm install -g netlify-cli
+
+      - name: Setup environment
+        run: |
+          ENV="${{ inputs.environment }}"
+          echo "Setting up $ENV environment"
+          echo "Reading from GitHub Secrets (no .env files needed)"
+
+            - name: Create/Update Web Site
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: |
+          ENV="${{ inputs.environment }}"
+          SITE_NAME="${{ github.event.repository.name }}-web-$ENV"
+
+          # Check if site exists
+          SITE_ID=$(netlify api listSites | jq -r ".[] | select(.name==\"$SITE_NAME\") | .id" || echo "")
+
+          if [ -z "$SITE_ID" ]; then
+            echo "Creating new Netlify site: $SITE_NAME"
+
+            # Create site
+            SITE_ID=$(netlify api createSite -d "{
+              \"name\": \"$SITE_NAME\",
+              \"custom_domain\": \"${{ github.event.repository.name }}.netlify.app\"
+            }" | jq -r '.id')
+
+            echo "Created site with ID: $SITE_ID"
+
+            # Store site ID in GitHub secrets
+            gh secret set "NETLIFY_WEB_SITE_ID_$(echo $ENV | tr '[:lower:]' '[:upper:]')" -b"$SITE_ID"
+          else
+            echo "Site already exists with ID: $SITE_ID"
+          fi
+
+          # Configure build settings
+          netlify api updateSite --site-id="$SITE_ID" -d "{
+            \"build_settings\": {
+              \"cmd\": \"curl -fsSL https://bun.sh/install | bash && export PATH=\$HOME/.bun/bin:\$PATH && bun install && bun run build:web:$ENV\",
+              \"dir\": \"apps/web/dist\"
+            }
+          }"
+
+          # Link to Git repo
+          netlify link --id="$SITE_ID"
+        env:
+          GH_TOKEN: ${{ github.token }}
+      
+            - name: Create/Update Admin Site
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: |
+          ENV="${{ inputs.environment }}"
+          SITE_NAME="${{ github.event.repository.name }}-admin-$ENV"
+
+          # Check if site exists
+          SITE_ID=$(netlify api listSites | jq -r ".[] | select(.name==\"$SITE_NAME\") | .id" || echo "")
+
+          if [ -z "$SITE_ID" ]; then
+            echo "Creating new Netlify site: $SITE_NAME"
+
+            # Create site
+            SITE_ID=$(netlify api createSite -d "{
+              \"name\": \"$SITE_NAME\",
+              \"custom_domain\": \"admin-${{ github.event.repository.name }}.netlify.app\"
+            }" | jq -r '.id')
+
+            echo "Created site with ID: $SITE_ID"
+
+            # Store site ID in GitHub secrets
+            gh secret set "NETLIFY_ADMIN_SITE_ID_$(echo $ENV | tr '[:lower:]' '[:upper:]')" -b"$SITE_ID"
+          else
+            echo "Site already exists with ID: $SITE_ID"
+          fi
+
+          # Configure build settings
+          netlify api updateSite --site-id="$SITE_ID" -d "{
+            \"build_settings\": {
+              \"cmd\": \"curl -fsSL https://bun.sh/install | bash && export PATH=\$HOME/.bun/bin:\$PATH && bun install && bun run build:admin:$ENV\",
+              \"dir\": \"apps/admin/dist\"
+            }
+          }"
+
+          # Link to Git repo
+          netlify link --id="$SITE_ID"
+        env:
+          GH_TOKEN: ${{ github.token }}
+      
+  sync-env-vars:
+    name: Sync Environment Variables
+    needs: setup-netlify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Netlify CLI
+        run: npm install -g netlify-cli
+
+            - name: Sync Web App Env Vars to Netlify
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: |
+          ENV="${{ inputs.environment }}"
+          ENV_UPPER=$(echo "$ENV" | tr '[:lower:]' '[:upper:]')
+
+          # Get Supabase URL from secrets (based on environment)
+          SUPABASE_URL="${{ secrets[format('SUPABASE_URL_{0}', env.ENV_UPPER)] || secrets.SUPABASE_URL_PRODUCTION }}"
+          SUPABASE_KEY="${{ secrets[format('SUPABASE_PUBLISHABLE_KEY_{0}', env.ENV_UPPER)] || secrets.SUPABASE_PUBLISHABLE_KEY_PRODUCTION }}"
+
+          # Get site ID
+          SITE_ID=$(gh secret list | grep "NETLIFY_WEB_SITE_ID_${ENV_UPPER}" | awk '{print $2}' || echo "")
+
+          if [ -z "$SITE_ID" ]; then
+            echo "Warning: Site ID not found for $ENV"
+            exit 0
+          fi
+
+          echo "Syncing Supabase env vars to Netlify..."
+          netlify env:set VITE_SUPABASE_URL "$SUPABASE_URL" --site-id="$SITE_ID" || true
+          netlify env:set VITE_SUPABASE_PUBLISHABLE_KEY "$SUPABASE_KEY" --site-id="$SITE_ID" || true
+
+          echo "✅ Web env vars synced"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ENV_UPPER: ${{ inputs.environment == 'production' && 'PRODUCTION' || 'STAGING' }}
+      
+            - name: Sync Admin App Env Vars to Netlify
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+        run: |
+          ENV="${{ inputs.environment }}"
+          ENV_UPPER=$(echo "$ENV" | tr '[:lower:]' '[:upper:]')
+
+          SUPABASE_URL="${{ secrets[format('SUPABASE_URL_{0}', env.ENV_UPPER)] || secrets.SUPABASE_URL_PRODUCTION }}"
+          SUPABASE_KEY="${{ secrets[format('SUPABASE_PUBLISHABLE_KEY_{0}', env.ENV_UPPER)] || secrets.SUPABASE_PUBLISHABLE_KEY_PRODUCTION }}"
+
+          SITE_ID=$(gh secret list | grep "NETLIFY_ADMIN_SITE_ID_${ENV_UPPER}" | awk '{print $2}' || echo "")
+
+          if [ -z "$SITE_ID" ]; then
+            echo "Warning: Site ID not found for $ENV"
+            exit 0
+          fi
+
+          echo "Syncing Supabase env vars to Netlify..."
+          netlify env:set VITE_SUPABASE_URL "$SUPABASE_URL" --site-id="$SITE_ID" || true
+          netlify env:set VITE_SUPABASE_PUBLISHABLE_KEY "$SUPABASE_KEY" --site-id="$SITE_ID" || true
+
+          echo "✅ Admin env vars synced"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ENV_UPPER: ${{ inputs.environment == 'production' && 'PRODUCTION' || 'STAGING' }}
+      
+  summary:
+    name: Deployment Setup Summary
+    needs: [setup-netlify, sync-env-vars]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Summary
+        run: |
+          echo "✅ Deployment setup complete for ${{ inputs.environment }} environment"
+          echo ""
+          echo "Next steps:"
+          echo "1. Commit .env.${{ inputs.environment }} file (if not already committed)"
+          echo "2. Push to trigger Netlify deployments"
+          echo "3. Create a tag (e.g., v1.0.0) to trigger full release"

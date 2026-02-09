@@ -1,0 +1,21 @@
+{
+  "name": "@test-cicd/supabase",
+  "version": "1.0.0",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "start": "supabase start",
+    "stop": "supabase stop",
+    "status": "supabase status",
+    "db:reset": "supabase db reset",
+    "db:diff": "supabase db diff",
+    "link": "supabase link",
+    "gen:types": "supabase gen types typescript --local > ../db/src/database.types.ts"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.89.0"
+  },
+  "devDependencies": {
+    "supabase": "^2.70.5"
+  }
+}

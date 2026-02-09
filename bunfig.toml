@@ -1,0 +1,14 @@
+# Bun configuration
+# https://bun.sh/docs/runtime/bunfig
+
+[install]
+# Trust postinstall scripts from these packages
+# These are common dependencies that need to run setup scripts
+trustedDependencies = [
+  "core-js",
+  "@sentry/cli",
+  "protobufjs",
+  "esbuild",
+  "@swc/core",
+  "sharp"
+]

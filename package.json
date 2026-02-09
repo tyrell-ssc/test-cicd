@@ -1,0 +1,93 @@
+{
+  "name": "test-cicd",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "packageManager": "bun@latest",
+  "scripts": {
+    "dev": "bun run --filter='./apps/*' dev",
+    "dev:web": "bun run --filter='@test-cicd/web' dev",
+    "dev:mobile": "bun run --filter='@test-cicd/mobile' dev",
+    "dev:admin": "bun run --filter='@test-cicd/admin' dev",
+    "dev:staging": "bun run --filter='./apps/*' dev:staging",
+    "dev:production": "bun run --filter='./apps/*' dev:production",
+    "build": "bun run --filter='./apps/*' build",
+    "build:web": "bun run --filter='@test-cicd/web' build",
+    "build:web:staging": "bun run --filter='@test-cicd/web' build:staging",
+    "build:web:production": "bun run --filter='@test-cicd/web' build:production",
+    "build:admin": "bun run --filter='@test-cicd/admin' build",
+    "build:admin:staging": "bun run --filter='@test-cicd/admin' build:staging",
+    "build:admin:production": "bun run --filter='@test-cicd/admin' build:production",
+    "build:staging": "bun run --filter='./apps/*' build:staging",
+    "build:production": "bun run --filter='./apps/*' build:production",
+    "db:generate": "bun run --filter='@test-cicd/db' generate",
+    "db:push": "bun run --filter='@test-cicd/db' push",
+    "db:studio": "bun run --filter='@test-cicd/db' studio",
+    "supabase:start": "cd packages/supabase && npx supabase start",
+    "supabase:stop": "cd packages/supabase && npx supabase stop",
+    "supabase:status": "cd packages/supabase && npx supabase status",
+    "setup": "./scripts/setup-env.sh",
+    "setup:secrets": "./scripts/setup-secrets.sh",
+    "validate:env": "./scripts/validate-env.sh",
+    "check:env": "./scripts/check-env-safety.sh",
+    "typecheck": "bun run --filter='./packages/*' typecheck && bun run --filter='./apps/*' typecheck",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "prepare": "husky || true",
+    "validate": "bun run format:check && bun run lint && bun run typecheck",
+    "commitlint": "commitlint",
+    "test": "vitest run",
+    "test:unit": "vitest run --reporter=verbose",
+    "test:integration": "vitest run --grep='integration'",
+    "test:e2e": "playwright test",
+    "release:patch": "npm version patch && git push --follow-tags",
+    "release:minor": "npm version minor && git push --follow-tags",
+    "release:major": "npm version major && git push --follow-tags"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/react": "^19.1.0",
+    "typescript": "^5.7.2",
+    "eslint": "^9.18.0",
+    "@eslint/js": "^9.18.0",
+    "typescript-eslint": "^8.54.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-native": "^5.0.0",
+    "prettier": "^3.4.2",
+    "prettier-plugin-tailwindcss": "^0.7.2",
+    "eslint-config-prettier": "^9.1.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^16.2.7",
+    "@commitlint/cli": "^19.6.1",
+    "@commitlint/config-conventional": "^19.6.1",
+    "vitest": "^2.1.8",
+    "@vitest/ui": "^2.1.8",
+    "playwright": "^1.49.1"
+  },
+  "overrides": {
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "react-native": "0.81.5",
+    "react-native-web": "0.21.1",
+    "tailwindcss": "3.4.18"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix --no-warn-ignored",
+      "prettier --write"
+    ],
+    "*.{js,jsx}": [
+      "eslint --fix --no-warn-ignored",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml}": [
+      "prettier --write"
+    ]
+  }
+}

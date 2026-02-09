@@ -1,0 +1,34 @@
+# Netlify Configuration for Web App
+[build]
+  base = "."
+  command = "curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH && bun install && bun run build:web:production"
+  publish = "apps/web/dist"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# Production (main branch)
+[context.production]
+  command = "curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH && bun install && bun run build:web:production"
+
+[context.production.environment]
+  VITE_ENVIRONMENT = "production"
+
+# Staging (staging branch)
+[context.staging]
+  command = "curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH && bun install && bun run build:web:staging"
+
+[context.staging.environment]
+  VITE_ENVIRONMENT = "staging"
+
+# Deploy Previews (PRs)
+[context.deploy-preview]
+  command = "curl -fsSL https://bun.sh/install | bash && export PATH=$HOME/.bun/bin:$PATH && bun install && bun run build:web:production"
+
+[context.deploy-preview.environment]
+  VITE_ENVIRONMENT = "preview"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
