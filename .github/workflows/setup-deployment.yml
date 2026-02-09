@@ -133,15 +133,16 @@ jobs:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_PAT }}
           ENV_UPPER: ${{ inputs.environment == 'production' && 'PRODUCTION' || 'STAGING' }}
+          SITE_ID: ${{ secrets[format('NETLIFY_WEB_SITE_ID_{0}', inputs.environment == 'production' && 'PRODUCTION' || 'STAGING')] }}
         run: |
           ENV="${{ inputs.environment }}"
           SUPABASE_URL="${{ secrets[format('SUPABASE_URL_{0}', env.ENV_UPPER)] || secrets.SUPABASE_URL_PRODUCTION }}"
           SUPABASE_KEY="${{ secrets[format('SUPABASE_PUBLISHABLE_KEY_{0}', env.ENV_UPPER)] || secrets.SUPABASE_PUBLISHABLE_KEY_PRODUCTION }}"
 
-          SITE_ID=$(gh secret list | grep "NETLIFY_WEB_SITE_ID_${ENV_UPPER}" | awk '{print $2}' || echo "")
 
           if [ -z "$SITE_ID" ]; then
-            echo "❌ Error: Web Site ID not found."
+            # echo "❌ Error: Web Site ID not found."
+            echo "❌ Error: Secret NETLIFY_WEB_SITE_ID_${ENV_UPPER} is empty or not found."
             exit 1
           fi
 
@@ -160,12 +161,11 @@ jobs:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_PAT }}
           ENV_UPPER: ${{ inputs.environment == 'production' && 'PRODUCTION' || 'STAGING' }}
+          SITE_ID: ${{ secrets[format('NETLIFY_ADMIN_SITE_ID_{0}', inputs.environment == 'production' && 'PRODUCTION' || 'STAGING')] }}
         run: |
           ENV="${{ inputs.environment }}"
           SUPABASE_URL="${{ secrets[format('SUPABASE_URL_{0}', env.ENV_UPPER)] || secrets.SUPABASE_URL_PRODUCTION }}"
           SUPABASE_KEY="${{ secrets[format('SUPABASE_PUBLISHABLE_KEY_{0}', env.ENV_UPPER)] || secrets.SUPABASE_PUBLISHABLE_KEY_PRODUCTION }}"
-
-          SITE_ID=$(gh secret list | grep "NETLIFY_ADMIN_SITE_ID_${ENV_UPPER}" | awk '{print $2}' || echo "")
 
           if [ -z "$SITE_ID" ]; then
              echo "❌ Error: Admin Site ID not found."
