@@ -151,7 +151,7 @@ jobs:
         if: needs.version-info.outputs.is_major == 'true'
         run: bun run test:e2e
 
-deploy-web-staging:
+  deploy-web-staging:
     needs: [version-info, setup-staging, lint, unit-tests, e2e-tests]
     if: |
       always() &&
@@ -168,7 +168,7 @@ deploy-web-staging:
     secrets:
       NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
 
-deploy-web-prod:
+  deploy-web-prod:
     needs: [version-info, setup-prod, lint, unit-tests, e2e-tests]
     if: |
       always() &&
@@ -201,7 +201,7 @@ deploy-web-prod:
     secrets:
       NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
 
-deploy-admin-staging:
+  deploy-admin-staging:
     needs: [version-info, setup-staging, lint, unit-tests, e2e-tests]
     if: |
       always() &&
@@ -217,8 +217,8 @@ deploy-admin-staging:
       site_id: ${{ needs.setup-staging.outputs.admin_site_id || secrets.NETLIFY_ADMIN_SITE_ID_STAGING }}
     secrets:
       NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-      
-deploy-admin-prod:
+
+  deploy-admin-prod:
     needs: [version-info, setup-prod, lint, unit-tests, e2e-tests]
     if: |
       always() &&
