@@ -142,9 +142,7 @@ jobs:
       app_name: 'web'
       environment: 'staging'
       site_id_from_setup: ${{ needs.setup-staging.outputs.web_site_id }}
-    secrets:
-      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-      SITE_ID_FROM_SECRET: ${{ secrets.NETLIFY_WEB_SITE_ID_STAGING }}
+    secrets: inherit
 
   deploy-web-prod:
     needs: [version-info, setup-prod, quality-patch, quality-minor-major, tests]
@@ -158,9 +156,7 @@ jobs:
       app_name: 'web'
       environment: 'production'
       site_id_from_setup: ${{ needs.setup-prod.outputs.web_site_id }}
-    secrets:
-      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-      SITE_ID_FROM_SECRET: ${{ secrets.NETLIFY_WEB_SITE_ID_PRODUCTION }}
+    secrets: inherit
 
   deploy-admin-staging:
     needs: [version-info, setup-staging, quality-patch, quality-minor-major, tests]
@@ -174,9 +170,7 @@ jobs:
       app_name: 'admin'
       environment: 'staging'
       site_id_from_setup: ${{ needs.setup-staging.outputs.admin_site_id }}
-    secrets:
-      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-      SITE_ID_FROM_SECRET: ${{ secrets.NETLIFY_ADMIN_SITE_ID_STAGING }}
+    secrets: inherit
 
   deploy-admin-prod:
     needs: [version-info, setup-prod, quality-patch, quality-minor-major, tests]
@@ -190,9 +184,7 @@ jobs:
       app_name: 'admin'
       environment: 'production'
       site_id_from_setup: ${{ needs.setup-prod.outputs.admin_site_id }}
-    secrets:
-      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-      SITE_ID_FROM_SECRET: ${{ secrets.NETLIFY_ADMIN_SITE_ID_PRODUCTION }}
+    secrets: inherit
 
   # deploy-mobile-ota:
   #   needs: [version-info, quality-patch, quality-minor-major, tests]

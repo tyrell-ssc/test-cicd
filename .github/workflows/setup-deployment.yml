@@ -134,78 +134,9 @@ jobs:
 
           netlify api updateSite --data "$UPDATE_DATA"
 
-  sync-env-vars:
-    name: Sync Environment Variables
-    needs: setup-netlify
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install Netlify CLI
-        run: npm install -g netlify-cli
-
-      - name: Sync Web App Env Vars
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          GH_TOKEN: ${{ secrets.GH_PAT }}
-          ENV_UPPER: ${{ inputs.environment == 'production' && 'PRODUCTION' || 'STAGING' }}
-          SITE_ID: ${{ needs.setup-netlify.outputs.web_site_id }}
-        run: |
-          ENV="${{ inputs.environment }}"
-          SUPABASE_URL="${{ secrets[format('SUPABASE_URL_{0}', env.ENV_UPPER)] || secrets.SUPABASE_URL_PRODUCTION }}"
-          SUPABASE_KEY="${{ secrets[format('SUPABASE_PUBLISHABLE_KEY_{0}', env.ENV_UPPER)] || secrets.SUPABASE_PUBLISHABLE_KEY_PRODUCTION }}"
-
-          if [ -z "$SITE_ID" ]; then
-            # echo "❌ Error: Web Site ID not found."
-            echo "❌ Error: Secret NETLIFY_WEB_SITE_ID_${ENV_UPPER} is empty or not found."
-            exit 1
-          fi
-
-          # Change directory to the specific app to isolate context
-          cd apps/web || { echo "❌ 'apps/web' directory not found"; exit 1; }
-
-          echo "Syncing to Site ID: $SITE_ID"
-          
-          # Export Site ID directly. No need for 'netlify link'.
-          export NETLIFY_SITE_ID="$SITE_ID"
-          
-          netlify env:set VITE_SUPABASE_URL "$SUPABASE_URL"
-          netlify env:set VITE_SUPABASE_PUBLISHABLE_KEY "$SUPABASE_KEY"
-          
-          echo "✅ Web env vars synced"
-
-      - name: Sync Admin App Env Vars
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          GH_TOKEN: ${{ secrets.GH_PAT }}
-          ENV_UPPER: ${{ inputs.environment == 'production' && 'PRODUCTION' || 'STAGING' }}
-          SITE_ID: ${{ needs.setup-netlify.outputs.admin_site_id }}
-        run: |
-          ENV="${{ inputs.environment }}"
-          SUPABASE_URL="${{ secrets[format('SUPABASE_URL_{0}', env.ENV_UPPER)] || secrets.SUPABASE_URL_PRODUCTION }}"
-          SUPABASE_KEY="${{ secrets[format('SUPABASE_PUBLISHABLE_KEY_{0}', env.ENV_UPPER)] || secrets.SUPABASE_PUBLISHABLE_KEY_PRODUCTION }}"
-
-          if [ -z "$SITE_ID" ]; then
-             echo "❌ Error: Admin Site ID not found."
-             exit 1
-          fi
-
-          # ✅ FIX: Change directory to the specific app to isolate context
-          cd apps/admin || { echo "❌ 'apps/web' directory not found"; exit 1; }
-
-          echo "Syncing to Site ID: $SITE_ID"
-          
-          # ✅ FIX: Export Site ID directly.
-          export NETLIFY_SITE_ID="$SITE_ID"
-
-          netlify env:set VITE_SUPABASE_URL "$SUPABASE_URL"
-          netlify env:set VITE_SUPABASE_PUBLISHABLE_KEY "$SUPABASE_KEY"
-
-          echo "✅ Admin env vars synced"
-
   summary:
     name: Deployment Setup Summary
-    needs: [setup-netlify, sync-env-vars]
+    needs: [setup-netlify]
     runs-on: ubuntu-latest
     steps:
       - name: Summary
