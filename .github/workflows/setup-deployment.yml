@@ -23,8 +23,8 @@ jobs:
     name: Setup Netlify Sites
     runs-on: ubuntu-latest
     outputs:
-      web_site_id: ${{ steps.create-web-site.outputs.site_id }}
-      admin_site_id: ${{ steps.create-admin-site.outputs.site_id }}
+      web_site_id: ${{ steps.web.outputs.site_id }}
+      admin_site_id: ${{ steps.admin.outputs.site_id }}
     steps:
       - uses: actions/checkout@v4
 
@@ -147,7 +147,6 @@ jobs:
           ENV="${{ inputs.environment }}"
           SUPABASE_URL="${{ secrets[format('SUPABASE_URL_{0}', env.ENV_UPPER)] || secrets.SUPABASE_URL_PRODUCTION }}"
           SUPABASE_KEY="${{ secrets[format('SUPABASE_PUBLISHABLE_KEY_{0}', env.ENV_UPPER)] || secrets.SUPABASE_PUBLISHABLE_KEY_PRODUCTION }}"
-
 
           if [ -z "$SITE_ID" ]; then
             # echo "❌ Error: Web Site ID not found."
