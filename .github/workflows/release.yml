@@ -65,7 +65,7 @@ jobs:
               exit 0
               fi
               echo "needs_setup=false" >> $GITHUB_OUTPUT
-              echo "✅ Netlify sites already configured"
+              echo "✅ Netlify sites already configured."
   setup-deployment:
     name: Setup Deployment (First Run)
     needs: check-deployment-setup
