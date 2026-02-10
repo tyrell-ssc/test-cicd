@@ -22,6 +22,9 @@ jobs:
   setup-netlify:
     name: Setup Netlify Sites
     runs-on: ubuntu-latest
+    outputs:
+      web_site_id: ${{ steps.create-web-site.outputs.site_id }}
+      admin_site_id: ${{ steps.create-admin-site.outputs.site_id }}
     steps:
       - uses: actions/checkout@v4
 
@@ -29,6 +32,7 @@ jobs:
         run: npm install -g netlify-cli
 
       - name: Create/Update Web Site
+        id: web
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_PAT }}
@@ -62,6 +66,8 @@ jobs:
             echo "Found existing site: $SITE_ID"
           fi
 
+          echo "site_id=$SITE_ID" >> $GITHUB_OUTPUT
+
           # NOTE: Build settings usually only apply if the site is connected to a Git Repo.
           # Since we are using API creation, you might need to connect the repo manually in UI later,
           # OR use 'netlify deploy' in your CI pipeline.
@@ -77,6 +83,7 @@ jobs:
           # ✅ FIX: Removed 'netlify link' which causes monorepo errors.
 
       - name: Create/Update Admin Site
+        id: admin
         env:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_PAT }}
@@ -109,6 +116,8 @@ jobs:
             echo "Found existing site: $SITE_ID"
           fi
 
+          echo "site_id=$SITE_ID" >> $GITHUB_OUTPUT
+
           echo "Updating build settings..."
           UPDATE_DATA=$(jq -n \
             --arg id "$SITE_ID" \
@@ -133,7 +142,7 @@ jobs:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_PAT }}
           ENV_UPPER: ${{ inputs.environment == 'production' && 'PRODUCTION' || 'STAGING' }}
-          SITE_ID: ${{ secrets[format('NETLIFY_WEB_SITE_ID_{0}', inputs.environment == 'production' && 'PRODUCTION' || 'STAGING')] }}
+          SITE_ID: ${{ needs.setup-netlify.outputs.web_site_id }}
         run: |
           ENV="${{ inputs.environment }}"
           SUPABASE_URL="${{ secrets[format('SUPABASE_URL_{0}', env.ENV_UPPER)] || secrets.SUPABASE_URL_PRODUCTION }}"
@@ -164,7 +173,7 @@ jobs:
           NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
           GH_TOKEN: ${{ secrets.GH_PAT }}
           ENV_UPPER: ${{ inputs.environment == 'production' && 'PRODUCTION' || 'STAGING' }}
-          SITE_ID: ${{ secrets[format('NETLIFY_ADMIN_SITE_ID_{0}', inputs.environment == 'production' && 'PRODUCTION' || 'STAGING')] }}
+          SITE_ID: ${{ needs.setup-netlify.outputs.admin_site_id }}
         run: |
           ENV="${{ inputs.environment }}"
           SUPABASE_URL="${{ secrets[format('SUPABASE_URL_{0}', env.ENV_UPPER)] || secrets.SUPABASE_URL_PRODUCTION }}"
