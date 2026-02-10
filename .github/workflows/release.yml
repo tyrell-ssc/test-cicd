@@ -49,32 +49,69 @@ jobs:
     name: Check Deployment Setup
     runs-on: ubuntu-latest
     outputs:
-      needs_setup: ${{ steps.check.outputs.needs_setup }}
+      # needs_setup: ${{ steps.check.outputs.needs_setup }}
+      setup_staging: ${{ steps.check.outputs.setup_staging }}
+      setup_prod: ${{ steps.check.outputs.setup_prod }}
     steps:
       - name: Check if Netlify sites are configured
         id: check
         run: |
-              if [ -z "${{ secrets.NETLIFY_WEB_SITE_ID_PRODUCTION }}" ]; then
-              echo "needs_setup=true" >> $GITHUB_OUTPUT
-              echo "⚠️  Netlify sites not configured. Will run setup first."
-              exit 0
-              fi
-              if [ -z "${{ secrets.NETLIFY_ADMIN_SITE_ID_PRODUCTION }}" ]; then
-              echo "needs_setup=true" >> $GITHUB_OUTPUT
-              echo "⚠️  Netlify sites not configured. Will run setup first."
-              exit 0
-              fi
-              echo "needs_setup=false" >> $GITHUB_OUTPUT
-              echo "✅ Netlify sites already configured."
-  setup-deployment:
-    name: Setup Deployment (First Run)
-    needs: check-deployment-setup
-    if: needs.check-deployment-setup.outputs.needs_setup == 'true'
+          # --- CHECK STAGING ---
+          if [ -z "${{ secrets.NETLIFY_WEB_SITE_ID_STAGING }}" ] || [ -z "${{ secrets.NETLIFY_ADMIN_SITE_ID_STAGING }}" ]; then
+            echo "setup_staging=true" >> $GITHUB_OUTPUT
+            echo "⚠️ Staging needs setup."
+          else
+            echo "setup_staging=false" >> $GITHUB_OUTPUT
+            echo "✅ Staging ready."
+          fi
+
+          # --- CHECK PRODUCTION ---
+          if [ -z "${{ secrets.NETLIFY_WEB_SITE_ID_PRODUCTION }}" ] || [ -z "${{ secrets.NETLIFY_ADMIN_SITE_ID_PRODUCTION }}" ]; then
+            echo "setup_prod=true" >> $GITHUB_OUTPUT
+            echo "⚠️ Production needs setup."
+          else
+            echo "setup_prod=false" >> $GITHUB_OUTPUT
+            echo "✅ Production ready."
+          fi
+          echo "✅ Netlify sites already configured."
+        # run: |
+        #       if [ -z "${{ secrets.NETLIFY_WEB_SITE_ID_PRODUCTION }}" ]; then
+        #       echo "needs_setup=true" >> $GITHUB_OUTPUT
+        #       echo "⚠️  Netlify sites not configured. Will run setup first."
+        #       exit 0
+        #       fi
+        #       if [ -z "${{ secrets.NETLIFY_ADMIN_SITE_ID_PRODUCTION }}" ]; then
+        #       echo "needs_setup=true" >> $GITHUB_OUTPUT
+        #       echo "⚠️  Netlify sites not configured. Will run setup first."
+        #       exit 0
+        #       fi
+        #       echo "needs_setup=false" >> $GITHUB_OUTPUT
+        # echo "✅ Netlify sites already configured."
+  # setup-deployment:
+  #   name: Setup Deployment (First Run)
+  #   needs: check-deployment-setup
+  #   if: needs.check-deployment-setup.outputs.needs_setup == 'true'
+  #   uses: ./.github/workflows/setup-deployment.yml
+  #   secrets: inherit
+  #   with:
+  #     environment: production
+  setup-staging:
+    needs: check-deployment
+    # Only run if check-deployment said staging was missing
+    if: needs.check-deployment.outputs.setup_staging == 'true'
+    uses: ./.github/workflows/setup-deployment.yml
+    secrets: inherit
+    with:
+      environment: staging
+
+  setup-prod:
+    needs: check-deployment
+    # Only run if check-deployment said prod was missing
+    if: needs.check-deployment.outputs.setup_prod == 'true'
     uses: ./.github/workflows/setup-deployment.yml
     secrets: inherit
     with:
       environment: production
-
   quality-patch:
     needs: [version-info, check-deployment-setup, setup-deployment]
     if: |
@@ -114,22 +151,105 @@ jobs:
         if: needs.version-info.outputs.is_major == 'true'
         run: bun run test:e2e
 
-  deploy-mobile-ota:
-    needs: [version-info, quality-patch, quality-minor-major, tests]
+deploy-web-staging:
+    needs: [version-info, setup-staging, lint, unit-tests, e2e-tests]
     if: |
       always() &&
-      (needs.version-info.outputs.is_patch == 'true' || needs.version-info.outputs.is_minor == 'true') &&
-      (needs.quality-patch.result == 'success' || needs.quality-minor-major.result == 'success') &&
-      (needs.tests.result == 'success' || needs.tests.result == 'skipped')
-    uses: ./.github/workflows/mobile-ota.yml
-    secrets: inherit
+      needs.lint.result == 'success' &&
+      (needs.setup-staging.result == 'success' || needs.setup-staging.result == 'skipped') &&
+      (needs.version-info.outputs.is_patch == 'true' || needs.unit-tests.result == 'success') &&
+      (needs.version-info.outputs.is_major != 'true' || needs.e2e-tests.result == 'success')
+    uses: ./.github/workflows/deploy-web.yml
+    with:
+      app_name: 'web'
+      environment: 'staging'
+      # ✅ THE FIX: Use Output OR Fallback to Secret (if setup was skipped)
+      site_id: ${{ needs.setup-staging.outputs.web_site_id || secrets.NETLIFY_WEB_SITE_ID_STAGING }}
+    secrets:
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
 
-  deploy-mobile-build:
-    needs: [version-info, quality-minor-major, tests]
+deploy-web-prod:
+    needs: [version-info, setup-prod, lint, unit-tests, e2e-tests]
     if: |
       always() &&
-      needs.version-info.outputs.is_major == 'true' &&
-      needs.quality-minor-major.result == 'success' &&
-      needs.tests.result == 'success'
-    uses: ./.github/workflows/mobile-build.yml
-    secrets: inherit
+      needs.lint.result == 'success' &&
+      (needs.setup-prod.result == 'success' || needs.setup-prod.result == 'skipped') &&
+      (needs.version-info.outputs.is_patch == 'true' || needs.unit-tests.result == 'success') &&
+      (needs.version-info.outputs.is_major != 'true' || needs.e2e-tests.result == 'success')
+    uses: ./.github/workflows/deploy-web.yml
+    with:
+      app_name: 'web'
+      environment: 'production'
+      # ✅ THE FIX: Use Output OR Fallback to Secret
+      site_id: ${{ needs.setup-prod.outputs.web_site_id || secrets.NETLIFY_WEB_SITE_ID_PRODUCTION }}
+    secrets:
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      deploy-web-staging:
+    needs: [version-info, setup-staging, lint, unit-tests, e2e-tests]
+    if: |
+      always() &&
+      needs.lint.result == 'success' &&
+      (needs.setup-staging.result == 'success' || needs.setup-staging.result == 'skipped') &&
+      (needs.version-info.outputs.is_patch == 'true' || needs.unit-tests.result == 'success') &&
+      (needs.version-info.outputs.is_major != 'true' || needs.e2e-tests.result == 'success')
+    uses: ./.github/workflows/deploy-web.yml
+    with:
+      app_name: 'web'
+      environment: 'staging'
+      # ✅ THE FIX: Use Output OR Fallback to Secret (if setup was skipped)
+      site_id: ${{ needs.setup-staging.outputs.web_site_id || secrets.NETLIFY_WEB_SITE_ID_STAGING }}
+    secrets:
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+
+deploy-admin-staging:
+    needs: [version-info, setup-staging, lint, unit-tests, e2e-tests]
+    if: |
+      always() &&
+      needs.lint.result == 'success' &&
+      (needs.setup-staging.result == 'success' || needs.setup-staging.result == 'skipped') &&
+      (needs.version-info.outputs.is_patch == 'true' || needs.unit-tests.result == 'success') &&
+      (needs.version-info.outputs.is_major != 'true' || needs.e2e-tests.result == 'success')
+    uses: ./.github/workflows/deploy-web.yml
+    with:
+      app_name: 'admin'
+      environment: 'staging'
+      # ✅ THE FIX: Use Output OR Fallback to Secret (if setup was skipped)
+      site_id: ${{ needs.setup-staging.outputs.admin_site_id || secrets.NETLIFY_ADMIN_SITE_ID_STAGING }}
+    secrets:
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      
+deploy-admin-prod:
+    needs: [version-info, setup-prod, lint, unit-tests, e2e-tests]
+    if: |
+      always() &&
+      needs.lint.result == 'success' &&
+      (needs.setup-prod.result == 'success' || needs.setup-prod.result == 'skipped') &&
+      (needs.version-info.outputs.is_patch == 'true' || needs.unit-tests.result == 'success') &&
+      (needs.version-info.outputs.is_major != 'true' || needs.e2e-tests.result == 'success')
+    uses: ./.github/workflows/deploy-web.yml
+    with:
+      app_name: 'admin'
+      environment: 'production'
+      # ✅ THE FIX: Use Output OR Fallback to Secret
+      site_id: ${{ needs.setup-prod.outputs.admin_site_id || secrets.NETLIFY_ADMIN_SITE_ID_PRODUCTION }}
+    secrets:
+      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+  # deploy-mobile-ota:
+  #   needs: [version-info, quality-patch, quality-minor-major, tests]
+  #   if: |
+  #     always() &&
+  #     (needs.version-info.outputs.is_patch == 'true' || needs.version-info.outputs.is_minor == 'true') &&
+  #     (needs.quality-patch.result == 'success' || needs.quality-minor-major.result == 'success') &&
+  #     (needs.tests.result == 'success' || needs.tests.result == 'skipped')
+  #   uses: ./.github/workflows/mobile-ota.yml
+  #   secrets: inherit
+
+  # deploy-mobile-build:
+  #   needs: [version-info, quality-minor-major, tests]
+  #   if: |
+  #     always() &&
+  #     needs.version-info.outputs.is_major == 'true' &&
+  #     needs.quality-minor-major.result == 'success' &&
+  #     needs.tests.result == 'success'
+  #   uses: ./.github/workflows/mobile-build.yml
+  #   secrets: inherit
