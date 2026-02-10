@@ -62,11 +62,5 @@ jobs:
           fi  
 
           echo "Deploying ${{ inputs.app_name }} to Site ID: $NETLIFY_SITE_ID"
-          
-          # Navigate to app folder (if your build output is inside the app folder)
-          # Note: If your build script outputs to a root 'dist', you might not need to cd.
-          # Assuming standard monorepo structure:
-          cd apps/${{ inputs.app_name }}
 
-          # Deploy
-          NETLIFY_SITE_ID=$NETLIFY_SITE_ID netlify deploy --dir=dist --prod
+          NETLIFY_SITE_ID=$NETLIFY_SITE_ID netlify deploy --dir=apps/${{ inputs.app_name }}/dist --prod
