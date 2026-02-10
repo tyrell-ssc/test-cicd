@@ -164,9 +164,10 @@ jobs:
       app_name: 'web'
       environment: 'staging'
       # ✅ THE FIX: Use Output OR Fallback to Secret (if setup was skipped)
-      site_id: ${{ needs.setup-staging.outputs.web_site_id || secrets.NETLIFY_WEB_SITE_ID_STAGING }}
+      site_id_from_setup: ${{ needs.setup-staging.outputs.web_site_id }}
     secrets:
       NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      SITE_ID_FROM_SECRET: ${{ secrets.NETLIFY_WEB_SITE_ID_STAGING }}
 
   deploy-web-prod:
     needs: [version-info, setup-prod, lint, unit-tests, e2e-tests]
@@ -181,25 +182,10 @@ jobs:
       app_name: 'web'
       environment: 'production'
       # ✅ THE FIX: Use Output OR Fallback to Secret
-      site_id: ${{ needs.setup-prod.outputs.web_site_id || secrets.NETLIFY_WEB_SITE_ID_PRODUCTION }}
+      site_id_from_setup: ${{ needs.setup-prod.outputs.web_site_id }}
     secrets:
       NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-      deploy-web-staging:
-    needs: [version-info, setup-staging, lint, unit-tests, e2e-tests]
-    if: |
-      always() &&
-      needs.lint.result == 'success' &&
-      (needs.setup-staging.result == 'success' || needs.setup-staging.result == 'skipped') &&
-      (needs.version-info.outputs.is_patch == 'true' || needs.unit-tests.result == 'success') &&
-      (needs.version-info.outputs.is_major != 'true' || needs.e2e-tests.result == 'success')
-    uses: ./.github/workflows/deploy-web.yml
-    with:
-      app_name: 'web'
-      environment: 'staging'
-      # ✅ THE FIX: Use Output OR Fallback to Secret (if setup was skipped)
-      site_id: ${{ needs.setup-staging.outputs.web_site_id || secrets.NETLIFY_WEB_SITE_ID_STAGING }}
-    secrets:
-      NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      SITE_ID_FROM_SECRET: ${{ secrets.NETLIFY_WEB_SITE_ID_PRODUCTION }}
 
   deploy-admin-staging:
     needs: [version-info, setup-staging, lint, unit-tests, e2e-tests]
@@ -214,9 +200,10 @@ jobs:
       app_name: 'admin'
       environment: 'staging'
       # ✅ THE FIX: Use Output OR Fallback to Secret (if setup was skipped)
-      site_id: ${{ needs.setup-staging.outputs.admin_site_id || secrets.NETLIFY_ADMIN_SITE_ID_STAGING }}
+      site_id_from_setup : ${{ needs.setup-staging.outputs.admin_site_id }}
     secrets:
       NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      SITE_ID_FROM_SECRET: ${{ secrets.NETLIFY_ADMIN_SITE_ID_STAGING }}
 
   deploy-admin-prod:
     needs: [version-info, setup-prod, lint, unit-tests, e2e-tests]
@@ -229,11 +216,13 @@ jobs:
     uses: ./.github/workflows/deploy-web.yml
     with:
       app_name: 'admin'
-      environment: 'production'
-      # ✅ THE FIX: Use Output OR Fallback to Secret
-      site_id: ${{ needs.setup-prod.outputs.admin_site_id || secrets.NETLIFY_ADMIN_SITE_ID_PRODUCTION }}
+      environment: 'staging'
+      # ✅ THE FIX: Use Output OR Fallback to Secret (if setup was skipped)
+      site_id_from_setup : ${{ needs.setup-prod.outputs.admin_site_id }}
     secrets:
       NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+      SITE_ID_FROM_SECRET: ${{ secrets.NETLIFY_ADMIN_SITE_ID_PRODUCTION }}
+
   # deploy-mobile-ota:
   #   needs: [version-info, quality-patch, quality-minor-major, tests]
   #   if: |

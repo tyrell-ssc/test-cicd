@@ -1,0 +1,73 @@
+name: Deploy Web/Admin
+
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        required: true
+        type: string
+        description: "App name (web or admin)"
+      environment:
+        required: true
+        type: string
+        description: "production or staging"
+      # ✅ CHANGE: Accept the ID directly as an input
+      site_id:
+        required: true
+        type: string
+        description: "The Netlify Site ID"
+    secrets:
+      NETLIFY_AUTH_TOKEN:
+        required: true
+      SITE_ID_FROM_SECRET:
+        required: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Bun
+        uses: oven-sh/setup-bun@v1
+
+      - name: Install Dependencies
+        run: bun install
+
+      - name: Install Netlify CLI
+        run: npm install -g netlify-cli
+
+      - name: Build Project
+        run: |
+          echo "Building ${{ inputs.app_name }}..."
+          bun run build:${{ inputs.app_name }}:${{ inputs.environment }}
+
+      - name: Deploy to Netlify
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          # Inputs
+          ID_INPUT: ${{ inputs.site_id_from_setup }}
+          # Secrets
+          ID_SECRET: ${{ secrets.SITE_ID_FROM_SECRET }}
+        run: |
+          # Bash Logic: Use Input if set, otherwise use Secret
+          if [ -n "$ID_INPUT" ]; then
+            NETLIFY_SITE_ID="$ID_INPUT"
+            echo "Using Site ID from Setup Output."
+          elif [ -n "$ID_SECRET" ]; then
+            NETLIFY_SITE_ID="$ID_SECRET"
+            echo "Using Site ID from Repository Secrets."
+          else
+            echo "❌ Error: No Site ID provided (neither from setup output nor secrets)."
+            exit 1
+          fi  
+
+          echo "Deploying ${{ inputs.app_name }} to Site ID: $NETLIFY_SITE_ID"
+          
+          # Navigate to app folder (if your build output is inside the app folder)
+          # Note: If your build script outputs to a root 'dist', you might not need to cd.
+          # Assuming standard monorepo structure:
+          cd apps/${{ inputs.app_name }}
+
+          # Deploy
+          NETLIFY_SITE_ID=$NETLIFY_SITE_ID netlify deploy --dir=dist --prod
