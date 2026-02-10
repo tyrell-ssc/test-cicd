@@ -17,6 +17,13 @@ on:
         description: 'Environment to setup'
         required: true
         type: string
+    outputs:
+      web_site_id:
+        description: "The web Netlify site ID"
+        value: ${{ jobs.setup-netlify.outputs.web_site_id }}
+      admin_site_id:
+        description: "The admin Netlify site ID"
+        value: ${{ jobs.setup-netlify.outputs.admin_site_id }}
 
 jobs:
   setup-netlify:

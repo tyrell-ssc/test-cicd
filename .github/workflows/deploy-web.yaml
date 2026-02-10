@@ -11,11 +11,10 @@ on:
         required: true
         type: string
         description: "production or staging"
-      # ✅ CHANGE: Accept the ID directly as an input
-      site_id:
-        required: true
+      site_id_from_setup:
+        required: false
         type: string
-        description: "The Netlify Site ID"
+        description: "The Netlify Site ID from setup job output (falls back to SITE_ID_FROM_SECRET)"
     secrets:
       NETLIFY_AUTH_TOKEN:
         required: true
