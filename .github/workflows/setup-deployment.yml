@@ -146,9 +146,12 @@ jobs:
             exit 1
           fi
 
+          # Change directory to the specific app to isolate context
+          cd apps/web || { echo "❌ 'apps/web' directory not found"; exit 1; }
+
           echo "Syncing to Site ID: $SITE_ID"
           
-          # ✅ FIX: Export Site ID directly. No need for 'netlify link'.
+          # Export Site ID directly. No need for 'netlify link'.
           export NETLIFY_SITE_ID="$SITE_ID"
           
           netlify env:set VITE_SUPABASE_URL "$SUPABASE_URL"
@@ -171,6 +174,9 @@ jobs:
              echo "❌ Error: Admin Site ID not found."
              exit 1
           fi
+
+          # ✅ FIX: Change directory to the specific app to isolate context
+          cd apps/admin || { echo "❌ 'apps/web' directory not found"; exit 1; }
 
           echo "Syncing to Site ID: $SITE_ID"
           
