@@ -63,5 +63,11 @@ jobs:
 
           echo "Deploying ${{ inputs.app_name }} to Site ID: $NETLIFY_SITE_ID"
 
+          PACKAGE_NAME=$(jq -r '.name' "apps/${{ inputs.app_name }}/package.json")
           DEPLOY_DIR="$(pwd)/apps/${{ inputs.app_name }}/dist"
-          NETLIFY_SITE_ID=$NETLIFY_SITE_ID netlify deploy --dir="$DEPLOY_DIR" --prod
+
+          NETLIFY_SITE_ID=$NETLIFY_SITE_ID netlify deploy \
+            --filter="$PACKAGE_NAME" \
+            --no-build \
+            --dir="$DEPLOY_DIR" \
+            --prod
