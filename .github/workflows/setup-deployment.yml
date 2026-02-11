@@ -21,9 +21,15 @@ on:
       web_site_id:
         description: "The web Netlify site ID"
         value: ${{ jobs.setup-netlify.outputs.web_site_id }}
+      web_site_url:
+        description: "The web Netlify site URL"
+        value: ${{ jobs.setup-netlify.outputs.web_site_url }}
       admin_site_id:
         description: "The admin Netlify site ID"
         value: ${{ jobs.setup-netlify.outputs.admin_site_id }}
+      admin_site_url:
+        description: "The admin Netlify site URL"
+        value: ${{ jobs.setup-netlify.outputs.admin_site_url }}
 
 jobs:
   setup-netlify:
@@ -31,7 +37,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       web_site_id: ${{ steps.web.outputs.site_id }}
+      web_site_url: ${{ steps.web.outputs.site_url }}
       admin_site_id: ${{ steps.admin.outputs.site_id }}
+      admin_site_url: ${{ steps.admin.outputs.site_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -74,6 +82,8 @@ jobs:
           fi
 
           echo "site_id=$SITE_ID" >> $GITHUB_OUTPUT
+          SITE_URL=$(netlify api getSite --data "{\"site_id\": \"$SITE_ID\"}" | jq -r '.url')
+          echo "site_url=$SITE_URL" >> $GITHUB_OUTPUT
 
           # NOTE: Build settings usually only apply if the site is connected to a Git Repo.
           # Since we are using API creation, you might need to connect the repo manually in UI later,
@@ -124,6 +134,8 @@ jobs:
           fi
 
           echo "site_id=$SITE_ID" >> $GITHUB_OUTPUT
+          SITE_URL=$(netlify api getSite --data "{\"site_id\": \"$SITE_ID\"}" | jq -r '.url')
+          echo "site_url=$SITE_URL" >> $GITHUB_OUTPUT
 
           echo "Updating build settings..."
           UPDATE_DATA=$(jq -n \
@@ -134,15 +146,137 @@ jobs:
 
           netlify api updateSite --data "$UPDATE_DATA"
 
+  update-supabase-auth:
+    name: Update Supabase Auth Config
+    needs: setup-netlify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Update config.toml and push to Supabase
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          WEB_SITE_URL: ${{ needs.setup-netlify.outputs.web_site_url }}
+          ADMIN_SITE_URL: ${{ needs.setup-netlify.outputs.admin_site_url }}
+          SECRETS_JSON: ${{ toJSON(secrets) }}
+        run: |
+          ENV="${{ inputs.environment }}"
+          ENV_UPPER=$(echo "$ENV" | tr '[:lower:]' '[:upper:]')
+
+          PROJECT_REF=$(echo "$SECRETS_JSON" | jq -r \
+            --arg key "SUPABASE_PROJECT_REF_${ENV_UPPER}" '.[$key] // ""')
+
+          if [ -z "$PROJECT_REF" ]; then
+            echo "⚠️  SUPABASE_PROJECT_REF_${ENV_UPPER} not set — skipping Supabase config push"
+            exit 0
+          fi
+
+          CONFIG_FILE="packages/supabase/supabase/config.toml"
+
+          # Idempotent: skip if URL already present
+          if grep -qF "$WEB_SITE_URL" "$CONFIG_FILE"; then
+            echo "✅ Supabase auth config already up to date."
+            exit 0
+          fi
+
+          python3 << 'PYEOF'
+import re, os
+
+web_url   = os.environ['WEB_SITE_URL']
+admin_url = os.environ['ADMIN_SITE_URL']
+path      = 'packages/supabase/supabase/config.toml'
+
+with open(path) as f:
+    content = f.read()
+
+# Replace site_url
+content = re.sub(r'site_url = ".*?"', f'site_url = "{web_url}"', content)
+
+# Prepend callback URLs into additional_redirect_urls array
+new_entries = f'  "{web_url}/api/auth/callback",\n  "{admin_url}/api/auth/callback",'
+content = re.sub(
+    r'(additional_redirect_urls\s*=\s*\[)',
+    f'\\1\n{new_entries}',
+    content
+)
+
+with open(path, 'w') as f:
+    f.write(content)
+
+print(f"Updated config.toml — site_url: {web_url}")
+PYEOF
+
+          supabase link --project-ref "$PROJECT_REF"
+          supabase config push
+          echo "✅ Supabase auth config pushed for $ENV"
+
+  migrate-database:
+    name: Migrate Database
+    needs: setup-netlify
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v1
+
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run database migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SECRETS_JSON: ${{ toJSON(secrets) }}
+        run: |
+          ENV="${{ inputs.environment }}"
+          ENV_UPPER=$(echo "$ENV" | tr '[:lower:]' '[:upper:]')
+
+          PROJECT_REF=$(echo "$SECRETS_JSON" | jq -r \
+            --arg key "SUPABASE_PROJECT_REF_${ENV_UPPER}" '.[$key] // ""')
+
+          if [ -z "$PROJECT_REF" ]; then
+            echo "⚠️  SUPABASE_PROJECT_REF_${ENV_UPPER} not set — skipping database migration"
+            exit 0
+          fi
+
+          DB_PASSWORD=$(echo "$SECRETS_JSON" | jq -r \
+            --arg key "SUPABASE_DB_PASSWORD_${ENV_UPPER}" '.[$key] // ""')
+
+          DATABASE_URL=$(echo "$SECRETS_JSON" | jq -r \
+            --arg key "DATABASE_URL_${ENV_UPPER}" '.[$key] // ""')
+
+          if [ -z "$DATABASE_URL" ]; then
+            echo "⚠️  DATABASE_URL_${ENV_UPPER} not set — skipping database migration"
+            exit 0
+          fi
+
+          echo "Running Drizzle schema push against $ENV database..."
+          cd packages/db
+          DATABASE_URL="$DATABASE_URL" bunx drizzle-kit push --force
+          cd ../..
+
+          echo "Applying SQL migrations to $ENV Supabase project..."
+          cd packages/supabase
+          supabase link --project-ref "$PROJECT_REF" --password "$DB_PASSWORD"
+          supabase db push
+          cd ../..
+
+          echo "✅ Database migrations applied for $ENV"
+
   summary:
     name: Deployment Setup Summary
-    needs: [setup-netlify]
+    needs: [setup-netlify, update-supabase-auth, migrate-database]
     runs-on: ubuntu-latest
     steps:
       - name: Summary
-        env:
-          GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
           echo "✅ Deployment setup complete for ${{ inputs.environment }} environment"
-          echo "View your sites here:"
-          echo "Web Site: https://$(gh secret list | grep NETLIFY_WEB_SITE_ID_${{ inputs.environment == 'production' && 'PRODUCTION' || 'STAGING' }} | awk '{print $2}' | xargs netlify api getSite --data | jq -r '.url')"
+          echo "Web:   ${{ needs.setup-netlify.outputs.web_site_url }}"
+          echo "Admin: ${{ needs.setup-netlify.outputs.admin_site_url }}"
