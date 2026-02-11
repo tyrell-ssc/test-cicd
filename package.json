@@ -29,6 +29,8 @@
     "supabase:start": "cd packages/supabase && npx supabase start",
     "supabase:stop": "cd packages/supabase && npx supabase stop",
     "supabase:status": "cd packages/supabase && npx supabase status",
+    "supabase:link": "cd packages/supabase && npx supabase link",
+    "supabase:db:push": "cd packages/supabase && npx supabase db push",
     "setup": "./scripts/setup-env.sh",
     "setup:secrets": "./scripts/setup-secrets.sh",
     "validate:env": "./scripts/validate-env.sh",

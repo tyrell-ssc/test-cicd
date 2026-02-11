@@ -184,31 +184,31 @@ jobs:
           fi
 
           python3 << 'PYEOF'
-import re, os
+          import re, os
 
-web_url   = os.environ['WEB_SITE_URL']
-admin_url = os.environ['ADMIN_SITE_URL']
-path      = 'packages/supabase/supabase/config.toml'
+          web_url   = os.environ['WEB_SITE_URL']
+          admin_url = os.environ['ADMIN_SITE_URL']
+          path      = 'packages/supabase/supabase/config.toml'
 
-with open(path) as f:
-    content = f.read()
+          with open(path) as f:
+              content = f.read()
 
-# Replace site_url
-content = re.sub(r'site_url = ".*?"', f'site_url = "{web_url}"', content)
+          # Replace site_url
+          content = re.sub(r'site_url = ".*?"', f'site_url = "{web_url}"', content)
 
-# Prepend callback URLs into additional_redirect_urls array
-new_entries = f'  "{web_url}/api/auth/callback",\n  "{admin_url}/api/auth/callback",'
-content = re.sub(
-    r'(additional_redirect_urls\s*=\s*\[)',
-    f'\\1\n{new_entries}',
-    content
-)
+          # Prepend callback URLs into additional_redirect_urls array
+          new_entries = f'  "{web_url}/api/auth/callback",\n  "{admin_url}/api/auth/callback",'
+          content = re.sub(
+              r'(additional_redirect_urls\s*=\s*\[)',
+              f'\\1\n{new_entries}',
+              content
+          )
 
-with open(path, 'w') as f:
-    f.write(content)
+          with open(path, 'w') as f:
+              f.write(content)
 
-print(f"Updated config.toml — site_url: {web_url}")
-PYEOF
+          print(f"Updated config.toml — site_url: {web_url}")
+          PYEOF
 
           supabase link --project-ref "$PROJECT_REF"
           supabase config push
